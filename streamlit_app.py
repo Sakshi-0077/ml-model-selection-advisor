@@ -793,3 +793,11 @@ if st.session_state.get(
             file_name="model_metadata.pkl",
             mime="application/octet-stream"
         )
+st.markdown(
+    """
+    <div style="text-align: center; margin-top: 50px;">
+        <p>Created by: <b>Yashvi Ghaghda & Sakshi Shah</b></p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
