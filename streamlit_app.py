@@ -1,568 +1,795 @@
-import streamlit as st
-import pandas as pd
-import tempfile
 from pathlib import Path
 import sys
-import os
+import tempfile
+import pickle
 
-# ============================================================
+import streamlit as st
+import pandas as pd
+
+
+# =========================================================
 # PROJECT PATH
-# ============================================================
+# =========================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = (
+    Path(__file__)
+    .resolve()
+    .parent
+    .parent
+)
 
 if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT)
+    )
 
 
-# ============================================================
-# IMPORT BACKEND FUNCTIONS
-# ============================================================
+from advisor import (
+    recommend_model,
+    detect_task_type,
+)
 
-from advisor import recommend_model, detect_task_type
-from train_final_model import train_final_model
+from train_final_model import (
+    train_final_model,
+)
 
 
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
+# =========================================================
+# PAGE CONFIG
+# =========================================================
 
 st.set_page_config(
     page_title="ML Model Selection Advisor",
-    page_icon="🤖",
+    page_icon=None,
     layout="wide"
 )
 
 
-# ============================================================
-# CUSTOM CSS
-# ============================================================
+# =========================================================
+# TITLE
+# =========================================================
 
-st.markdown(
-    """
-    <style>
-        .main-title {
-            font-size: 42px;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            text-align: center;
-            font-size: 18px;
-            color: #666;
-            margin-bottom: 35px;
-        }
-
-        .recommendation-box {
-            padding: 25px;
-            border-radius: 12px;
-            border: 2px solid #4CAF50;
-            margin-top: 20px;
-            margin-bottom: 20px;
-        }
-
-        .metric-box {
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #ddd;
-            text-align: center;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
+st.title(
+    "ML Model Selection Advisor"
 )
 
-
-# ============================================================
-# HEADER
-# ============================================================
-
-st.markdown(
-    '<div class="main-title">🤖 ML Model Selection Advisor</div>',
-    unsafe_allow_html=True
+st.write(
+    "Upload a CSV dataset, select the target column, "
+    "analyze the dataset, receive a model recommendation, "
+    "train the recommended model, evaluate it, and "
+    "download the trained model."
 )
 
-st.markdown(
-    '<div class="subtitle">'
-    'Upload a dataset and get an intelligent machine learning model recommendation.'
-    '</div>',
-    unsafe_allow_html=True
+st.divider()
+
+
+# =========================================================
+# SESSION STATE
+# =========================================================
+
+if "recommended_model" not in st.session_state:
+
+    st.session_state[
+        "recommended_model"
+    ] = None
+
+
+if "model_trained" not in st.session_state:
+
+    st.session_state[
+        "model_trained"
+    ] = False
+
+
+if "training_result" not in st.session_state:
+
+    st.session_state[
+        "training_result"
+    ] = None
+
+
+# =========================================================
+# UPLOAD
+# =========================================================
+
+st.header(
+    "Upload Dataset"
 )
 
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-st.sidebar.header("📂 Dataset")
-
-uploaded_file = st.sidebar.file_uploader(
-    "Upload your CSV file",
+uploaded_file = st.file_uploader(
+    "Upload your CSV dataset",
     type=["csv"]
 )
 
 
-# ============================================================
-# MAIN APPLICATION
-# ============================================================
+# =========================================================
+# APPLICATION
+# =========================================================
 
 if uploaded_file is None:
 
     st.info(
-        "👈 Upload a CSV dataset from the sidebar to start."
+        "Upload a CSV dataset to begin."
     )
 
-    st.markdown(
-        """
-        ### How it works
+    st.stop()
 
-        1. Upload your CSV dataset.
-        2. Select the target column.
-        3. The system analyzes the dataset.
-        4. The ML Model Selection Advisor recommends a model.
-        5. The recommended model is trained on your dataset.
-        6. The final trained model can be downloaded.
 
-        ### Supported Models
+# =========================================================
+# READ DATA
+# =========================================================
 
-        - XGBoost
-        - SVM
-        - Random Forest
-        - Logistic Regression
-        - KNN
-        - Decision Tree
-        """
+try:
+
+    df = pd.read_csv(
+        uploaded_file
+    )
+
+except Exception as e:
+
+    st.error(
+        f"Could not read CSV file: {e}"
+    )
+
+    st.stop()
+
+
+if df.empty:
+
+    st.error(
+        "The uploaded CSV file is empty."
+    )
+
+    st.stop()
+
+
+st.success(
+    f"Dataset uploaded successfully: "
+    f"{uploaded_file.name}"
+)
+
+
+# =========================================================
+# TEMPORARY FILE
+# =========================================================
+
+temp_dir = Path(
+    tempfile.gettempdir()
+)
+
+temp_csv_path = (
+    temp_dir
+    / uploaded_file.name
+)
+
+df.to_csv(
+    temp_csv_path,
+    index=False
+)
+
+
+# =========================================================
+# DATASET INFORMATION
+# =========================================================
+
+st.header(
+    "Dataset Information"
+)
+
+col1, col2, col3, col4 = (
+    st.columns(4)
+)
+
+with col1:
+
+    st.metric(
+        "Rows",
+        len(df)
+    )
+
+with col2:
+
+    st.metric(
+        "Columns",
+        len(df.columns)
+    )
+
+with col3:
+
+    st.metric(
+        "Missing Values",
+        f"{df.isna().mean().mean() * 100:.2f}%"
+    )
+
+with col4:
+
+    st.metric(
+        "Duplicate Rows",
+        int(
+            df.duplicated().sum()
+        )
+    )
+
+
+# =========================================================
+# DATA PREVIEW
+# =========================================================
+
+st.subheader(
+    "Dataset Preview"
+)
+
+st.dataframe(
+    df.head(10),
+    use_container_width=True
+)
+
+
+# =========================================================
+# TARGET COLUMN
+# =========================================================
+
+st.subheader(
+    "Select Target Column"
+)
+
+target_column = st.selectbox(
+    "Choose the column you want to predict:",
+    df.columns
+)
+
+
+# =========================================================
+# RESET WHEN TARGET CHANGES
+# =========================================================
+
+if (
+    "previous_target"
+    not in st.session_state
+):
+
+    st.session_state[
+        "previous_target"
+    ] = target_column
+
+
+if (
+    st.session_state[
+        "previous_target"
+    ] != target_column
+):
+
+    st.session_state[
+        "recommended_model"
+    ] = None
+
+    st.session_state[
+        "model_trained"
+    ] = False
+
+    st.session_state[
+        "training_result"
+    ] = None
+
+    st.session_state[
+        "previous_target"
+    ] = target_column
+
+
+# =========================================================
+# TARGET TYPE
+# =========================================================
+
+try:
+
+    task_type = detect_task_type(
+        df[target_column]
+    )
+
+except Exception as e:
+
+    st.error(
+        f"Could not determine target type: {e}"
+    )
+
+    st.stop()
+
+
+st.subheader(
+    "Problem Type"
+)
+
+if task_type == "classification":
+
+    st.success(
+        "Classification problem"
     )
 
 else:
 
-    # ========================================================
-    # LOAD DATASET
-    # ========================================================
-
-    try:
-        df = pd.read_csv(uploaded_file)
-
-    except Exception as e:
-        st.error(f"Unable to read the CSV file: {e}")
-        st.stop()
-
-    st.success("Dataset uploaded successfully!")
-
-
-    # ========================================================
-    # DATASET PREVIEW
-    # ========================================================
-
-    st.header("📊 Dataset Preview")
-
-    st.dataframe(
-        df.head(10),
-        use_container_width=True
+    st.success(
+        "Regression problem"
     )
 
 
-    # ========================================================
-    # TARGET COLUMN
-    # ========================================================
+# =========================================================
+# FEATURE INFORMATION
+# =========================================================
 
-    st.header("🎯 Target Column")
+feature_columns = [
+    column
+    for column in df.columns
+    if column != target_column
+]
 
-    target_column = st.selectbox(
-        "Select the target column:",
-        options=list(df.columns)
+numeric_columns = (
+    df[feature_columns]
+    .select_dtypes(
+        include=["number"]
+    )
+    .columns
+    .tolist()
+)
+
+categorical_columns = (
+    df[feature_columns]
+    .select_dtypes(
+        exclude=["number"]
+    )
+    .columns
+    .tolist()
+)
+
+
+st.subheader(
+    "Feature Information"
+)
+
+col1, col2 = st.columns(2)
+
+with col1:
+
+    st.write(
+        "**Numeric Features**"
+    )
+
+    st.write(
+        numeric_columns
+    )
+
+with col2:
+
+    st.write(
+        "**Categorical Features**"
+    )
+
+    st.write(
+        categorical_columns
     )
 
 
-    if target_column:
+# =========================================================
+# TARGET INFORMATION
+# =========================================================
 
-        # ====================================================
-        # BASIC DATASET INFORMATION
-        # ====================================================
+st.subheader(
+    "Target Information"
+)
 
-        X = df.drop(columns=[target_column])
-        y = df[target_column]
+if task_type == "classification":
 
-        n_samples = len(df)
-        n_features = len(X.columns)
-        n_classes = y.nunique()
+    target_classes = (
+        df[target_column]
+        .nunique()
+    )
 
-        numeric_features = X.select_dtypes(
-            include=["number"]
-        ).shape[1]
+    col1, col2 = st.columns(2)
 
-        categorical_features = X.select_dtypes(
-            exclude=["number"]
-        ).shape[1]
+    with col1:
 
-        missing_percentage = (
-            df.isnull().sum().sum()
-            / (df.shape[0] * df.shape[1])
-            * 100
+        st.metric(
+            "Number of Classes",
+            target_classes
         )
 
-
-        # ====================================================
-        # TASK TYPE
-        # ====================================================
-
-        try:
-            task_type = detect_task_type(y)
-
-        except Exception:
-            if y.dtype == "object" or y.nunique() <= 20:
-                task_type = "classification"
-            else:
-                task_type = "regression"
-
-
-        # ====================================================
-        # DATASET INFORMATION
-        # ====================================================
-
-        st.header("📋 Dataset Information")
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric(
-                "Samples",
-                n_samples
-            )
-
-        with col2:
-            st.metric(
-                "Features",
-                n_features
-            )
-
-        with col3:
-            st.metric(
-                "Classes",
-                n_classes
-            )
-
-        with col4:
-            st.metric(
-                "Missing %",
-                f"{missing_percentage:.2f}%"
-            )
-
-
-        # ====================================================
-        # FEATURE INFORMATION
-        # ====================================================
-
-        st.subheader("Feature Information")
-
-        feature_col1, feature_col2 = st.columns(2)
-
-        with feature_col1:
-            st.write(
-                f"**Numeric Features:** {numeric_features}"
-            )
-
-        with feature_col2:
-            st.write(
-                f"**Categorical Features:** {categorical_features}"
-            )
+    with col2:
 
         st.write(
-            f"**Task Type:** {task_type.capitalize()}"
+            "**Class Distribution**"
+        )
+
+        st.dataframe(
+            df[target_column]
+            .value_counts(),
+            use_container_width=True
+        )
+
+else:
+
+    target_numeric = pd.to_numeric(
+        df[target_column],
+        errors="coerce"
+    )
+
+    col1, col2, col3 = (
+        st.columns(3)
+    )
+
+    with col1:
+
+        st.metric(
+            "Minimum",
+            f"{target_numeric.min():.4f}"
+        )
+
+    with col2:
+
+        st.metric(
+            "Maximum",
+            f"{target_numeric.max():.4f}"
+        )
+
+    with col3:
+
+        st.metric(
+            "Mean",
+            f"{target_numeric.mean():.4f}"
         )
 
 
-        # ====================================================
-        # MODEL RECOMMENDATION
-        # ====================================================
+st.divider()
 
-        st.header("🧠 Model Recommendation")
 
-        try:
+# =========================================================
+# MODEL ADVISOR
+# =========================================================
 
-            recommendation = recommend_model(
-                df,
+st.header(
+    "Model Selection Advisor"
+)
+
+
+if st.button(
+    "Get Model Recommendation",
+    type="primary"
+):
+
+    try:
+
+        with st.spinner(
+            "Analyzing dataset..."
+        ):
+
+            details = recommend_model(
+                temp_csv_path,
                 target_column,
                 return_details=True
             )
 
-            # Handle dictionary result
-            if isinstance(recommendation, dict):
+        st.session_state[
+            "recommended_model"
+        ] = details[
+            "recommended_model"
+        ]
 
-                recommended_model = recommendation.get(
-                    "recommended_model",
-                    recommendation.get("model")
+        st.session_state[
+            "advisor_details"
+        ] = details
+
+        st.session_state[
+            "model_trained"
+        ] = False
+
+        st.session_state[
+            "training_result"
+        ] = None
+
+        st.success(
+            "Model recommendation completed."
+        )
+
+    except Exception as e:
+
+        st.error(
+            f"Model recommendation failed: {e}"
+        )
+
+
+# =========================================================
+# DISPLAY RECOMMENDATION
+# =========================================================
+
+if (
+    st.session_state[
+        "recommended_model"
+    ]
+    is not None
+):
+
+    recommended_model = (
+        st.session_state[
+            "recommended_model"
+        ]
+    )
+
+    st.subheader(
+        "Recommended Model"
+    )
+
+    st.success(
+        recommended_model
+    )
+
+    # -----------------------------------------------------
+    # Advisor details
+    # -----------------------------------------------------
+
+    details = st.session_state.get(
+        "advisor_details",
+        {}
+    )
+
+    if details:
+
+        col1, col2, col3 = (
+            st.columns(3)
+        )
+
+        with col1:
+
+            st.metric(
+                "Samples",
+                details.get(
+                    "samples",
+                    "-"
                 )
-
-                ranking = recommendation.get(
-                    "ranking",
-                    recommendation.get("rankings")
-                )
-
-            else:
-
-                recommended_model = recommendation
-                ranking = None
-
-
-            # ------------------------------------------------
-            # DISPLAY RECOMMENDATION
-            # ------------------------------------------------
-
-            st.markdown(
-                f"""
-                <div class="recommendation-box">
-
-                <h2>🏆 Recommended Model</h2>
-
-                <h1>{recommended_model}</h1>
-
-                <p>
-                Based on the dataset characteristics,
-                the Model Selection Advisor recommends
-                <b>{recommended_model}</b>.
-                </p>
-
-                </div>
-                """,
-                unsafe_allow_html=True
             )
 
+        with col2:
 
-            # =================================================
-            # MODEL RANKING
-            # =================================================
+            st.metric(
+                "Features",
+                details.get(
+                    "features",
+                    "-"
+                )
+            )
 
-            if ranking is not None:
+        with col3:
 
-                st.subheader("📈 Model Ranking")
+            st.metric(
+                "Task",
+                details.get(
+                    "task_type",
+                    "-"
+                )
+            )
 
-                if isinstance(ranking, dict):
+    # =====================================================
+    # TRAIN
+    # =====================================================
 
-                    ranking_df = pd.DataFrame(
-                        list(ranking.items()),
-                        columns=["Model", "Score"]
-                    )
+    st.divider()
 
-                    ranking_df = ranking_df.sort_values(
-                        by="Score",
-                        ascending=False
-                    )
+    st.header(
+        "Train Recommended Model"
+    )
 
-                    ranking_df["Score"] = ranking_df[
-                        "Score"
-                    ].apply(
-                        lambda x: f"{x:.2f}%"
-                        if isinstance(x, (int, float))
-                        else x
-                    )
+    st.write(
+        f"The advisor recommends "
+        f"**{recommended_model}** "
+        f"for this dataset."
+    )
 
-                    st.dataframe(
-                        ranking_df,
-                        use_container_width=True,
-                        hide_index=True
-                    )
+    if st.button(
+        "Train Model",
+        type="primary"
+    ):
 
-                elif isinstance(ranking, list):
+        try:
 
-                    st.write(ranking)
+            with st.spinner(
+                f"Training {recommended_model}..."
+            ):
 
+                result = train_final_model(
+                    temp_csv_path,
+                    target_column
+                )
+
+            st.session_state[
+                "model_trained"
+            ] = True
+
+            st.session_state[
+                "training_result"
+            ] = result
+
+            st.success(
+                "Model trained successfully."
+            )
 
         except Exception as e:
 
+            st.session_state[
+                "model_trained"
+            ] = False
+
             st.error(
-                f"Model recommendation failed: {e}"
+                "Model training failed."
             )
 
-            recommended_model = None
+            st.exception(e)
 
 
-        # ====================================================
-        # TRAIN FINAL MODEL
-        # ====================================================
+# =========================================================
+# TRAINING RESULTS
+# =========================================================
 
-        if recommended_model:
+if st.session_state.get(
+    "model_trained",
+    False
+):
 
-            st.header("🚀 Train Final Model")
+    st.divider()
 
-            st.write(
-                "The recommended model will now be trained "
-                "and evaluated on your uploaded dataset."
+    st.header(
+        "Training Results"
+    )
+
+    result = st.session_state.get(
+        "training_result"
+    )
+
+    metadata_path = (
+        PROJECT_ROOT
+        / "models"
+        / "model_metadata.pkl"
+    )
+
+    model_path = (
+        PROJECT_ROOT
+        / "models"
+        / "final_model.pkl"
+    )
+
+    # =====================================================
+    # LOAD METADATA
+    # =====================================================
+
+    if metadata_path.exists():
+
+        with open(
+            metadata_path,
+            "rb"
+        ) as file:
+
+            metadata = pickle.load(
+                file
             )
 
+        # -------------------------------------------------
+        # MODEL
+        # -------------------------------------------------
 
-            if st.button(
-                "Train Recommended Model",
-                type="primary"
-            ):
+        st.write(
+            f"**Model:** "
+            f"{metadata.get('recommended_model', '-')}"
+        )
 
-                with st.spinner(
-                    f"Training {recommended_model}..."
-                ):
+        st.write(
+            f"**Problem Type:** "
+            f"{metadata.get('task_type', '-')}"
+        )
 
-                    try:
+        # =================================================
+        # CLASSIFICATION RESULTS
+        # =================================================
 
-                        # =====================================
-                        # CREATE TEMPORARY CSV
-                        # =====================================
+        if metadata.get(
+            "task_type"
+        ) == "classification":
 
-                        with tempfile.NamedTemporaryFile(
-                            delete=False,
-                            suffix=".csv"
-                        ) as temp_file:
+            col1, col2, col3 = (
+                st.columns(3)
+            )
 
-                            temp_file_path = temp_file.name
-                            df.to_csv(
-                                temp_file_path,
-                                index=False
-                            )
+            with col1:
 
+                st.metric(
+                    "Accuracy",
+                    f"{metadata.get('accuracy', 0) * 100:.2f}%"
+                )
 
-                        # =====================================
-                        # TRAIN FINAL MODEL
-                        # =====================================
+            with col2:
 
-                        result = train_final_model(
-                            temp_file_path,
-                            target_column
-                        )
+                st.metric(
+                    "Balanced Accuracy",
+                    f"{metadata.get('balanced_accuracy', 0) * 100:.2f}%"
+                )
 
+            with col3:
 
-                        # =====================================
-                        # SUCCESS
-                        # =====================================
+                st.metric(
+                    "Weighted F1",
+                    f"{metadata.get('f1_score', 0) * 100:.2f}%"
+                )
 
-                        st.success(
-                            "Final model trained successfully! 🎉"
-                        )
+        # =================================================
+        # REGRESSION RESULTS
+        # =================================================
 
+        else:
 
-                        # =====================================
-                        # DISPLAY RESULT
-                        # =====================================
+            col1, col2, col3 = (
+                st.columns(3)
+            )
 
-                        if isinstance(result, dict):
+            with col1:
 
-                            if "model_name" in result:
+                st.metric(
+                    "R2 Score",
+                    f"{metadata.get('r2_score', 0):.4f}"
+                )
 
-                                st.write(
-                                    f"**Final Model:** "
-                                    f"{result['model_name']}"
-                                )
+            with col2:
 
-                            if "accuracy" in result:
+                st.metric(
+                    "MAE",
+                    f"{metadata.get('mae', 0):.4f}"
+                )
 
-                                st.metric(
-                                    "Accuracy",
-                                    f"{result['accuracy']:.4f}"
-                                )
+            with col3:
 
-                            if "balanced_accuracy" in result:
+                st.metric(
+                    "RMSE",
+                    f"{metadata.get('rmse', 0):.4f}"
+                )
 
-                                st.metric(
-                                    "Balanced Accuracy",
-                                    f"{result['balanced_accuracy']:.4f}"
-                                )
+    # =====================================================
+    # DOWNLOAD MODEL
+    # =====================================================
 
-                            if "f1_score" in result:
+    st.divider()
 
-                                st.metric(
-                                    "F1 Score",
-                                    f"{result['f1_score']:.4f}"
-                                )
+    st.header(
+        "Download Trained Model"
+    )
 
+    if model_path.exists():
 
-                        # =====================================
-                        # MODEL FILES
-                        # =====================================
+        with open(
+            model_path,
+            "rb"
+        ) as file:
 
-                        model_path = (
-                            PROJECT_ROOT
-                            / "models"
-                            / "final_model.pkl"
-                        )
+            model_bytes = file.read()
 
-                        metadata_path = (
-                            PROJECT_ROOT
-                            / "models"
-                            / "model_metadata.pkl"
-                        )
+        st.download_button(
+            label="Download Trained Model",
+            data=model_bytes,
+            file_name="trained_model.pkl",
+            mime="application/octet-stream"
+        )
 
+    # =====================================================
+    # DOWNLOAD METADATA
+    # =====================================================
 
-                        # =====================================
-                        # DOWNLOAD FINAL MODEL
-                        # =====================================
+    if metadata_path.exists():
 
-                        if model_path.exists():
+        with open(
+            metadata_path,
+            "rb"
+        ) as file:
 
-                            with open(
-                                model_path,
-                                "rb"
-                            ) as file:
+            metadata_bytes = file.read()
 
-                                st.download_button(
-                                    label="⬇️ Download Final Model",
-                                    data=file,
-                                    file_name="final_model.pkl",
-                                    mime="application/octet-stream"
-                                )
-
-
-                        # =====================================
-                        # DOWNLOAD METADATA
-                        # =====================================
-
-                        if metadata_path.exists():
-
-                            with open(
-                                metadata_path,
-                                "rb"
-                            ) as file:
-
-                                st.download_button(
-                                    label="⬇️ Download Model Metadata",
-                                    data=file,
-                                    file_name="model_metadata.pkl",
-                                    mime="application/octet-stream"
-                                )
-
-
-                    except Exception as e:
-
-                        st.error(
-                            f"Model training failed: {e}"
-                        )
-
-                    finally:
-
-                        # =====================================
-                        # DELETE TEMP FILE
-                        # =====================================
-
-                        try:
-
-                            if os.path.exists(temp_file_path):
-                                os.remove(temp_file_path)
-
-                        except Exception:
-                            pass
-
-
-# ============================================================
-# FOOTER
-# ============================================================
-
-st.markdown(
-    """
-    <div style="text-align: center; margin-top: 50px;">
-        <hr>
-        <p>
-            Created by:
-            <b>Yashvi Ghaghda & Sakshi Shah</b>
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        st.download_button(
+            label="Download Model Metadata",
+            data=metadata_bytes,
+            file_name="model_metadata.pkl",
+            mime="application/octet-stream"
+        )
