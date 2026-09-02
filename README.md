@@ -302,7 +302,7 @@ https://ml-model-selection-advisor-xf92lufeh2jxm9w8qlzuar.streamlit.app/
 **Sakshi Shah**
 Backend & Model Training
 
-**Yashvi**
+**Yashvi Ghaghda**
 Streamlit UI & Application Interface
 
 ## License
