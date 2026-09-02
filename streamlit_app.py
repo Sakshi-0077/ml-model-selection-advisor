@@ -15,7 +15,6 @@ PROJECT_ROOT = (
     Path(__file__)
     .resolve()
     .parent
-    .parent
 )
 
 if str(PROJECT_ROOT) not in sys.path:
@@ -594,18 +593,15 @@ if (
                 f"Training {recommended_model}..."
             ):
 
-                result = train_final_model(
-                    temp_csv_path,
-                    target_column
-                )
+               result = train_final_model(
+                temp_csv_path,
+                target_column
+            )
 
-            st.session_state[
-                "model_trained"
-            ] = True
-
-            st.session_state[
-                "training_result"
-            ] = result
+            st.session_state["model_trained"] = True
+            st.session_state["training_result"] = result
+            st.session_state["model_path"] = str(result["model_path"])
+            st.session_state["metadata_path"] = str(result["metadata_path"])
 
             st.success(
                 "Model trained successfully."
@@ -643,16 +639,12 @@ if st.session_state.get(
         "training_result"
     )
 
-    metadata_path = (
-        PROJECT_ROOT
-        / "models"
-        / "model_metadata.pkl"
+    model_path = Path(
+        st.session_state["model_path"]
     )
 
-    model_path = (
-        PROJECT_ROOT
-        / "models"
-        / "final_model.pkl"
+    metadata_path = Path(
+        st.session_state["metadata_path"]
     )
 
     # =====================================================
@@ -748,30 +740,38 @@ if st.session_state.get(
                     f"{metadata.get('rmse', 0):.4f}"
                 )
 
-    # =====================================================
-    # DOWNLOAD MODEL
-    # =====================================================
+    # =========================================================
+    # DOWNLOAD TRAINED MODEL
+    # =========================================================
 
     st.divider()
 
-    st.header(
-        "Download Trained Model"
-    )
+    st.header("Download Trained Model")
 
     if model_path.exists():
 
-        with open(
-            model_path,
-            "rb"
-        ) as file:
-
+        with open(model_path, "rb") as file:
             model_bytes = file.read()
+
+        st.success("Trained model is ready for download.")
 
         st.download_button(
             label="Download Trained Model",
             data=model_bytes,
             file_name="trained_model.pkl",
-            mime="application/octet-stream"
+            mime="application/octet-stream",
+            key="download_model"
+        )
+
+    else:
+
+        st.warning(
+            "Trained model file was not found. "
+            "Please train the model again."
+        )
+
+        st.write(
+            f"Expected model location: `{model_path}`"
         )
 
     # =====================================================
@@ -793,3 +793,56 @@ if st.session_state.get(
             file_name="model_metadata.pkl",
             mime="application/octet-stream"
         )
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.html(
+    """
+    <style>
+    .github-footer {
+        position: fixed;
+        bottom: 15px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        z-index: 9999;
+        font-size: 14px;
+    }
+
+    .github-footer img {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        transition: transform 0.2s;
+    }
+
+    .github-footer img:hover {
+        transform: scale(1.15);
+    }
+
+    .github-footer .ampersand {
+        font-size: 18px;
+        font-weight: bold;
+    }
+    </style>
+
+    <div class="github-footer">
+        <span>Created by</span>
+          <a href="https://github.com/Sakshi-0077" target="_blank">
+                    <img
+                        src="https://github.com/Sakshi-0077.png"
+                        alt="Sakshi"
+                    >
+                </a>
+        <span class="ampersand">&amp;</span>
+        <a href="https://github.com/yashvi-02" target="_blank">
+                   <img
+                       src="https://github.com/yashvi-02.png"
+                       alt="Yashvi"
+                   >
+               </a>
+    </div>
+    """
+)
