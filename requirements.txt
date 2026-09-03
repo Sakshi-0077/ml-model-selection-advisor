@@ -42,12 +42,12 @@ python-multipart==0.0.32
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.6.3
-scikit-learn==1.9.0
 scipy==1.18.1
 seaborn==0.13.2
 six==1.17.0
 starlette==1.6.0
 streamlit==1.62.0
+scikit-learn==1.9.0
 threadpoolctl==3.6.0
 toml==0.10.2
 tqdm==4.70.0
@@ -57,13 +57,5 @@ urllib3==2.7.0
 uvicorn==0.52.4
 watchdog==6.0.0
 websockets==16.1.1
-xgboost==3.4.1
 xmltodict==1.0.4
-streamlit==1.62.0
-pandas==3.0.5
-numpy==2.5.2
-scikit-learn==1.9.0
-joblib==1.5.3
 xgboost==3.4.1
-matplotlib==3.11.1
-seaborn==0.13.2
